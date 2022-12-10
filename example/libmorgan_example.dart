@@ -7,15 +7,14 @@ void main() {
   Morgan morgan = Morgan("password", 16);
   bool isInit = morgan.init("xK4j7I3pqi55x8qIASNqzQ==");
 
-  log(isInit.toString());
+  // var data = morgan
+  //     .packImage(File("D:/GitHub/arthurmorgan/libmorgan/example/hehe.png"));
 
-  morgan.packImage(
-      imageFile:
-          File("C:/Users/belik/Documents/GitHub/libmorgan/example/hehe.png"),
-      onSuccess: (i) {
-        File("data.hex").writeAsBytesSync(i);
-      },
-      onProgress: (i) {});
+  // File("dump.hex").writeAsBytesSync(data);
 
-  log("here");
+  // var data =
+  //     morgan.getThumbnail(File("D:/GitHub/arthurmorgan/libmorgan/dump.hex"));
+  // File("dump.jpeg").writeAsBytesSync(data);
+
+  // log("here");
 }
