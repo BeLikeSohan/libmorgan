@@ -41,11 +41,15 @@ class Morgan {
         .decryptBytes(Encrypted(Uint8List.fromList(data)), iv: _iv);
   }
 
-  void packImage(
-      {required File imageFile,
-      required Function(List<int> encryptedImage) onSuccess,
-      void Function(int progress)? onProgress,
-      void onError}) {
+  String encryptFileName(String fileName) {
+    return _encrypter!.encrypt(fileName, iv: _iv).base64;
+  }
+
+  String decryptFileName(String fileName) {
+    return _encrypter!.decrypt(Encrypted.fromBase64(fileName), iv: _iv);
+  }
+
+  List<int> packImage(File imageFile) {
     List<int> buffer = [];
 
     buffer.addAll("ArthurMorgan".codeUnits);
@@ -53,21 +57,30 @@ class Morgan {
     Image? image = decodeImage(imageFile.readAsBytesSync());
     Image thumbnail = copyResize(image!, width: 120);
 
-    var thumbnailData = encodeJpg(thumbnail);
+    List<int> thumbnailData = encodeJpg(thumbnail);
+    List<int> encryptedThumbnailData = encryptData(thumbnailData);
 
-    buffer.addAll(encryptData(thumbnailData));
+    buffer.addAll(
+        encryptedThumbnailData.length.toString().padLeft(12, '0').codeUnits);
+
+    buffer.addAll(encryptedThumbnailData);
     buffer.addAll(List.filled(65536 - buffer.length, 0));
     buffer.addAll(encryptData(imageFile.readAsBytesSync()));
 
-    onSuccess(buffer);
-    return;
+    log(thumbnailData.length.toString());
+    log(encryptData(thumbnailData).length.toString());
+
+    return buffer;
   }
 
-  void unpackImage(File imageFile) {
-    List<int> imageData = imageFile.readAsBytesSync();
-    var thumbnail = imageData.getRange(12, 65536).toList();
-    var image = imageData.getRange(65536, imageData.length).toList();
-    File("thumbnail.jpeg").writeAsBytesSync(thumbnail);
-    File("image.jpeg").writeAsBytesSync(image);
+  List<int> getThumbnail(Uint8List imageData) {
+    var thumbnailLength =
+        int.parse(String.fromCharCodes(imageData.getRange(12, 24)));
+    log(thumbnailLength.toString());
+
+    var thumbnailEncrypted =
+        imageData.getRange(24, 24 + thumbnailLength).toList();
+    var thumbnail = decryptData(thumbnailEncrypted);
+    return thumbnail;
   }
 }
