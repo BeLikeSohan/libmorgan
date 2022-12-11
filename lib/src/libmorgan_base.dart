@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:encrypt/encrypt.dart';
@@ -16,7 +17,7 @@ class Morgan {
   Morgan(String password, int iv) {
     _key = Key.fromUtf8(Utils.padPassToKey(password));
     _iv = IV.fromLength(iv);
-    _encrypter = Encrypter(AES(_key!, mode: AESMode.cbc));
+    _encrypter = Encrypter(AES(_key!, mode: AESMode.ctr, padding: null));
   }
 
   bool init(String verifyString) {
@@ -71,6 +72,53 @@ class Morgan {
     log(encryptData(thumbnailData).length.toString());
 
     return buffer;
+  }
+
+  void packVideo(Map<dynamic, dynamic> data) async {
+    File videoFile = data["videoFile"];
+    var tempFile = data["tempFile"];
+    SendPort port = data["port"];
+
+    double lenWritten = 0;
+    int fileLen = videoFile.lengthSync();
+
+    var fileStream = videoFile.openRead();
+
+    print(tempFile.path.toString());
+    tempFile.writeAsBytes("ArthurMorgan".codeUnits);
+    fileStream.listen((data) {
+      //xData.addAll(List.filled(65536 - data.length, 0));
+      print(data.length.toString());
+      var enc = encryptData(data);
+      lenWritten += data.length;
+      tempFile.writeAsBytesSync(encryptData(data), mode: FileMode.append);
+      double response = (lenWritten / fileLen) * 100;
+      port.send(response);
+    }, onDone: () {
+      Isolate.exit(port, "PACK_VIDEO_DONE");
+    });
+  }
+
+  void unpackVideo(Map<dynamic, dynamic> data) async {
+    File videoFile = data["videoFile"];
+    var saveFile = data["saveFile"];
+    SendPort port = data["port"];
+
+    double lenWritten = 0;
+    int fileLen = videoFile.lengthSync();
+
+    var fileStream = videoFile.openRead();
+
+    print(saveFile.path.toString());
+    fileStream.listen((data) {
+      var enc = decryptData(data);
+      lenWritten += data.length;
+      saveFile.writeAsBytesSync(encryptData(data), mode: FileMode.append);
+      double response = (lenWritten / fileLen) * 100;
+      port.send(response);
+    }, onDone: () {
+      Isolate.exit(port, "UNPACK_VIDEO_DONE");
+    });
   }
 
   List<int> getThumbnail(Uint8List imageData) {
