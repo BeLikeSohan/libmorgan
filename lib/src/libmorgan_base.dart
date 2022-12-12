@@ -50,10 +50,15 @@ class Morgan {
     return _encrypter!.decrypt(Encrypted.fromBase64(fileName), iv: _iv);
   }
 
-  List<int> packImage(File imageFile) {
-    List<int> buffer = [];
+  void packImage(Map<dynamic, dynamic> data) {
+    File imageFile = data["imageFile"];
+    File tempFile = data["tempFile"];
+    SendPort port = data["port"];
 
-    buffer.addAll("ArthurMorgan".codeUnits);
+    double lenWritten = 0;
+    int fileLen = imageFile.lengthSync();
+
+    tempFile.writeAsBytesSync("ArthurMorgan".codeUnits);
 
     Image? image = decodeImage(imageFile.readAsBytesSync());
     Image thumbnail = copyResize(image!, width: 120);
@@ -61,22 +66,51 @@ class Morgan {
     List<int> thumbnailData = encodeJpg(thumbnail);
     List<int> encryptedThumbnailData = encryptData(thumbnailData);
 
-    buffer.addAll(
-        encryptedThumbnailData.length.toString().padLeft(12, '0').codeUnits);
+    tempFile.writeAsBytesSync(
+        encryptedThumbnailData.length.toString().padLeft(12, '0').codeUnits,
+        mode: FileMode.append);
 
-    buffer.addAll(encryptedThumbnailData);
-    buffer.addAll(List.filled(65536 - buffer.length, 0));
-    buffer.addAll(encryptData(imageFile.readAsBytesSync()));
+    tempFile.writeAsBytesSync(encryptedThumbnailData, mode: FileMode.append);
+    tempFile.writeAsBytesSync(List.filled(65536 - tempFile.lengthSync(), 0),
+        mode: FileMode.append);
+    // tempFile.writeAsBytesSync(encryptData(imageFile.readAsBytesSync()),
+    //     mode: FileMode.append);
 
-    log(thumbnailData.length.toString());
-    log(encryptData(thumbnailData).length.toString());
+    imageFile.openRead().listen((data) {
+      lenWritten += data.length;
+      print(lenWritten);
+      tempFile.writeAsBytesSync(encryptData(data), mode: FileMode.append);
+      double response = (lenWritten / fileLen) * 100;
+      port.send(response);
+    }, onDone: () {
+      Isolate.exit(port, "PACK_IMAGE_DONE");
+    });
+  }
 
-    return buffer;
+  void unpackImage(Map<dynamic, dynamic> data) async {
+    File tempFile = data["tempFile"];
+    File saveFile = data["saveFile"];
+    SendPort port = data["port"];
+
+    double lenWritten = 0;
+    int fileLen = tempFile.lengthSync() - 65536;
+
+    var fileStream = tempFile.openRead(65536);
+
+    print(saveFile.path.toString());
+    fileStream.listen((data) {
+      lenWritten += data.length;
+      saveFile.writeAsBytesSync(decryptData(data), mode: FileMode.append);
+      double response = (lenWritten / fileLen) * 100;
+      port.send(response);
+    }, onDone: () {
+      Isolate.exit(port, "UNPACK_IMAGE_DONE");
+    });
   }
 
   void packVideo(Map<dynamic, dynamic> data) async {
     File videoFile = data["videoFile"];
-    var tempFile = data["tempFile"];
+    File tempFile = data["tempFile"];
     SendPort port = data["port"];
 
     double lenWritten = 0;
@@ -85,11 +119,12 @@ class Morgan {
     var fileStream = videoFile.openRead();
 
     print(tempFile.path.toString());
-    tempFile.writeAsBytes("ArthurMorgan".codeUnits);
+    tempFile.writeAsBytesSync("ArthurMorgan".codeUnits);
+    tempFile.writeAsBytesSync(List.filled(65536 - 12, 0),
+        mode: FileMode.append);
+
     fileStream.listen((data) {
       //xData.addAll(List.filled(65536 - data.length, 0));
-      print(data.length.toString());
-      var enc = encryptData(data);
       lenWritten += data.length;
       tempFile.writeAsBytesSync(encryptData(data), mode: FileMode.append);
       double response = (lenWritten / fileLen) * 100;
@@ -100,20 +135,19 @@ class Morgan {
   }
 
   void unpackVideo(Map<dynamic, dynamic> data) async {
-    File videoFile = data["videoFile"];
+    File tempFile = data["tempFile"];
     var saveFile = data["saveFile"];
     SendPort port = data["port"];
 
     double lenWritten = 0;
-    int fileLen = videoFile.lengthSync();
+    int fileLen = tempFile.lengthSync();
 
-    var fileStream = videoFile.openRead();
+    var fileStream = tempFile.openRead(65536);
 
     print(saveFile.path.toString());
     fileStream.listen((data) {
-      var enc = decryptData(data);
       lenWritten += data.length;
-      saveFile.writeAsBytesSync(encryptData(data), mode: FileMode.append);
+      saveFile.writeAsBytesSync(decryptData(data), mode: FileMode.append);
       double response = (lenWritten / fileLen) * 100;
       port.send(response);
     }, onDone: () {
