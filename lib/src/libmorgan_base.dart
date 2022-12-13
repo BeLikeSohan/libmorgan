@@ -158,7 +158,7 @@ class Morgan {
   List<int> getThumbnail(Uint8List imageData) {
     var thumbnailLength =
         int.parse(String.fromCharCodes(imageData.getRange(12, 24)));
-    log(thumbnailLength.toString());
+    //GlobalData.logger.d(thumbnailLength.toString());
 
     var thumbnailEncrypted =
         imageData.getRange(24, 24 + thumbnailLength).toList();

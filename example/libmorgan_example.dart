@@ -54,5 +54,5 @@ void main() async {
   //     morgan.getThumbnail(File("D:/GitHub/arthurmorgan/libmorgan/dump.hex"));
   // File("dump.jpeg").writeAsBytesSync(data);
 
-  // log("here");
+  // GlobalData.logger.d("here");
 }
